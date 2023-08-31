@@ -16,27 +16,38 @@
  */
 package org.apache.camel.main.xml.blueprint;
 
+import java.net.URI;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.StringJoiner;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.w3c.dom.Document;
+import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
+import org.apache.aries.blueprint.NamespaceHandler;
+import org.apache.aries.blueprint.ParserContext;
+import org.apache.aries.blueprint.container.BlueprintContainerImpl;
+import org.apache.aries.blueprint.container.SimpleNamespaceHandlerSet;
 import org.apache.camel.CamelContext;
 import org.apache.camel.main.MainConfigurationProperties;
 import org.apache.camel.main.util.XmlHelper;
 import org.apache.camel.model.Model;
 import org.apache.camel.model.app.RegistryBeanDefinition;
+import org.apache.camel.spi.ClassResolver;
 import org.apache.camel.spi.Resource;
 import org.apache.camel.spi.ResourceLoader;
 import org.apache.camel.support.PropertyBindingSupport;
 import org.apache.camel.util.StringHelper;
+import org.osgi.service.blueprint.reflect.ComponentMetadata;
+import org.osgi.service.blueprint.reflect.Metadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -67,7 +78,11 @@ public class BlueprintXmlBeansHandler {
             if (id.startsWith("camel-xml-io-dsl-blueprint-xml:")) {
                 // this is a camel bean via camel-xml-io-dsl
                 String fileName = StringHelper.afterLast(id, ":");
-                discoverBeans(camelContext, fileName, doc);
+                try {
+                    discoverBeans(camelContext, fileName, doc);
+                } catch (Exception e) {
+                    LOG.warn("Error due: " + e.getMessage(), e);
+                }
             }
         });
     }
@@ -76,6 +91,48 @@ public class BlueprintXmlBeansHandler {
      * Invoked at later stage to create and register Blueprint beans into Camel {@link org.apache.camel.spi.Registry}.
      */
     public void createAndRegisterBeans(CamelContext camelContext) {
+
+        for (Resource resource : resources.values()) {
+            SimpleNamespaceHandlerSet ns = new SimpleNamespaceHandlerSet();
+            ns.addNamespace(URI.create("http://camel.apache.org/schema/blueprint"), null, new NamespaceHandler() {
+                @Override
+                public URL getSchemaLocation(String s) {
+                    return null;
+                }
+
+                @Override
+                public Set<Class> getManagedClasses() {
+                    return null;
+                }
+
+                @Override
+                public Metadata parse(Element element, ParserContext parserContext) {
+                    return null;
+                }
+
+                @Override
+                public ComponentMetadata decorate(Node node, ComponentMetadata componentMetadata, ParserContext parserContext) {
+                    return null;
+                }
+            });
+
+            try {
+                ClassLoader cl = new MyClassLoader(camelContext.getClassResolver());
+                BlueprintContainerImpl container
+                        = new BlueprintContainerImpl(
+                                cl, List.of(resource.getURL()), null,
+                                ns, false);
+                System.out.println(container);
+                container.init(false);
+                System.out.println(container.getComponentIds());
+                for (String id : container.getComponentIds()) {
+                    System.out.println(container.getComponentMetadata(id));
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
         if (delayedBeans.isEmpty()) {
             return;
         }
@@ -221,6 +278,20 @@ public class BlueprintXmlBeansHandler {
                     LOG.warn("Error creating bean: {} due to: {}. This exception is ignored.", type, e.getMessage(), e);
                 }
             }
+        }
+    }
+
+    private class MyClassLoader extends ClassLoader {
+
+        private final ClassResolver classResolver;
+
+        private MyClassLoader(ClassResolver classResolver) {
+            this.classResolver = classResolver;
+        }
+
+        @Override
+        public Class<?> loadClass(String name) throws ClassNotFoundException {
+            return classResolver.resolveMandatoryClass(name);
         }
     }
 
