@@ -20,6 +20,7 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import io.grpc.CallCredentials;
 import io.grpc.Channel;
@@ -76,6 +77,21 @@ public final class GrpcUtils {
             }
             grpcStub = ObjectHelper.invokeMethod(grpcMethod, grpcServiceClass, channel);
 
+            //                        if (timeout != null) {
+            //                            ClientInterceptor addDeadlineInterceptor = new ClientInterceptor() {
+            //                                @Override
+            //                                public <ReqT, RespT> ClientCall<ReqT, RespT> interceptCall(
+            //                                        MethodDescriptor<ReqT, RespT> methodDescriptor, CallOptions callOptions,
+            //                                        Channel channel) {
+            //
+            //                                    return channel.newCall(methodDescriptor,
+            //                                            callOptions.withDeadlineAfter(timeout,
+            //                                                    TimeUnit.MILLISECONDS));
+            //                                }
+            //                            };
+            //                            grpcStub = GrpcUtils.addDeadlineInterceptor(grpcStub, addDeadlineInterceptor);
+            //                        }
+
             if (creds != null) {
                 return addClientCallCredentials(grpcStub, creds);
             }
@@ -96,6 +112,33 @@ public final class GrpcUtils {
         grpcStubWithCreds = ObjectHelper.invokeMethod(callCredsMethod, grpcStub, creds);
 
         return grpcStubWithCreds;
+    }
+
+    //    @SuppressWarnings("rawtypes")
+    //    public static Object addDeadlineInterceptor(Object grpcStub, ClientInterceptor interceptor) {
+    //        Class[] paramInterceptor = { ClientInterceptor[].class };
+    //        Object grpcStubWithInterceptor;
+    //
+    //        ClientInterceptor[] clientInterceptors = { interceptor };
+    //        Method callInterceptorsMethod = ReflectionHelper.findMethod(grpcStub.getClass(),
+    //                GrpcConstants.GRPC_SERVICE_STUB_CALL_INTERCEPTORS_METHOD, paramInterceptor);
+    //        grpcStubWithInterceptor = ObjectHelper.invokeMethod(callInterceptorsMethod, grpcStub,
+    //                new Object[] { clientInterceptors });
+    //
+    //        return grpcStubWithInterceptor;
+    //    }
+
+    @SuppressWarnings("rawtypes")
+    public static Object addDeadlineAfter(Object grpcStub, long duration, TimeUnit unit) {
+        Class[] params = { long.class, TimeUnit.class };
+        Object grpcStubWithDeadlineAfter;
+
+        Method callDeadlineAfterMethod = ReflectionHelper.findMethod(grpcStub.getClass(),
+                GrpcConstants.GRPC_SERVICE_STUB_CALL_DEADLINE_AFTER_METHOD, params);
+        grpcStubWithDeadlineAfter = ObjectHelper.invokeMethod(callDeadlineAfterMethod, grpcStub,
+                duration, unit);
+
+        return grpcStubWithDeadlineAfter;
     }
 
     @SuppressWarnings("rawtypes")

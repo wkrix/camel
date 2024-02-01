@@ -16,11 +16,14 @@
  */
 package org.apache.camel.component.grpc.client;
 
+import java.util.concurrent.TimeUnit;
+
 import io.grpc.stub.StreamObserver;
 import org.apache.camel.AsyncCallback;
 import org.apache.camel.Exchange;
 import org.apache.camel.Message;
 import org.apache.camel.component.grpc.GrpcConfiguration;
+import org.apache.camel.component.grpc.GrpcConstants;
 import org.apache.camel.component.grpc.GrpcUtils;
 
 /**
@@ -44,7 +47,8 @@ class GrpcStreamingExchangeForwarder implements GrpcExchangeForwarder {
     @Override
     public boolean forward(Exchange exchange, StreamObserver<Object> responseObserver, AsyncCallback callback) {
         Message message = exchange.getIn();
-        checkAndRecreateStreamObserver(responseObserver).onNext(message.getBody());
+        Long timeoutInHeader = exchange.getIn().getHeader(GrpcConstants.GRPC_TIMEOUT_HEADER, Long.class);
+        checkAndRecreateStreamObserver(responseObserver, timeoutInHeader).onNext(message.getBody());
         callback.done(true);
         return true;
     }
@@ -57,18 +61,19 @@ class GrpcStreamingExchangeForwarder implements GrpcExchangeForwarder {
     @Override
     public void shutdown() {
         if (this.currentResponseObserver != null) {
-            checkAndRecreateStreamObserver(this.currentResponseObserver).onCompleted();
+            checkAndRecreateStreamObserver(this.currentResponseObserver, null).onCompleted();
         }
         doCloseStream();
     }
 
-    private StreamObserver<Object> checkAndRecreateStreamObserver(StreamObserver<Object> responseObserver) {
+    private StreamObserver<Object> checkAndRecreateStreamObserver(
+            StreamObserver<Object> responseObserver, Long timeoutInHeader) {
         StreamObserver<Object> curStream = this.currentStream;
         if (curStream == null) {
             synchronized (this) {
                 if (this.currentStream == null) {
                     this.currentResponseObserver = responseObserver;
-                    this.currentStream = doCreateStream(responseObserver);
+                    this.currentStream = doCreateStream(responseObserver, timeoutInHeader);
                 }
 
                 curStream = this.currentStream;
@@ -89,9 +94,16 @@ class GrpcStreamingExchangeForwarder implements GrpcExchangeForwarder {
         }
     }
 
-    private StreamObserver<Object> doCreateStream(StreamObserver<Object> streamObserver) {
-
-        return GrpcUtils.invokeAsyncMethodStreaming(grpcStub, configuration.getMethod(), new StreamObserver<Object>() {
+    private StreamObserver<Object> doCreateStream(StreamObserver<Object> streamObserver, Long timeoutInHeader) {
+        Object currentStub = grpcStub;
+        Long timeout = configuration.getTimeout();
+        if (timeoutInHeader != null) {
+            timeout = timeoutInHeader;
+        }
+        if (timeout != null) {
+            currentStub = GrpcUtils.addDeadlineAfter(currentStub, timeout, TimeUnit.MILLISECONDS);
+        }
+        return GrpcUtils.invokeAsyncMethodStreaming(currentStub, configuration.getMethod(), new StreamObserver<Object>() {
 
             @Override
             public void onNext(Object o) {
