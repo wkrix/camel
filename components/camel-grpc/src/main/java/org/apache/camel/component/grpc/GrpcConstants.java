@@ -30,6 +30,8 @@ public interface GrpcConstants {
     String GRPC_SERVICE_ASYNC_STUB_METHOD = "newStub";
     String GRPC_SERVICE_FUTURE_STUB_METHOD = "newFutureStub";
     String GRPC_SERVICE_STUB_CALL_CREDS_METHOD = "withCallCredentials";
+    //    String GRPC_SERVICE_STUB_CALL_INTERCEPTORS_METHOD = "withInterceptors";
+    String GRPC_SERVICE_STUB_CALL_DEADLINE_AFTER_METHOD = "withDeadlineAfter";
 
     /*
      * JSON Web Tokens specific constants
@@ -57,6 +59,10 @@ public interface GrpcConstants {
                                                                      "* onError",
                                    javaType = "String")
     String GRPC_EVENT_TYPE_HEADER = "CamelGrpcEventType";
+    @org.apache.camel.spi.Metadata(label = "consumer",
+                                   description = "If provided, the timeout (in milliseconds) is used when the server has gone past the deadline when processing a request, the client will give up and fail the RPC with the DEADLINE_EXCEEDED status.",
+                                   javaType = "Long")
+    String GRPC_TIMEOUT_HEADER = "CamelGrpcTimeout";
 
     String GRPC_EVENT_TYPE_ON_NEXT = "onNext";
     String GRPC_EVENT_TYPE_ON_ERROR = "onError";

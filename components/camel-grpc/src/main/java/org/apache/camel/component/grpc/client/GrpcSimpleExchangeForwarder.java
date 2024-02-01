@@ -16,11 +16,14 @@
  */
 package org.apache.camel.component.grpc.client;
 
+import java.util.concurrent.TimeUnit;
+
 import io.grpc.stub.StreamObserver;
 import org.apache.camel.AsyncCallback;
 import org.apache.camel.Exchange;
 import org.apache.camel.Message;
 import org.apache.camel.component.grpc.GrpcConfiguration;
+import org.apache.camel.component.grpc.GrpcConstants;
 import org.apache.camel.component.grpc.GrpcUtils;
 
 /**
@@ -41,8 +44,17 @@ class GrpcSimpleExchangeForwarder implements GrpcExchangeForwarder {
     @Override
     public boolean forward(Exchange exchange, StreamObserver<Object> responseObserver, AsyncCallback callback) {
         Message message = exchange.getIn();
+        Object currentStub = grpcStub;
+        Long timeout = configuration.getTimeout();
+        Long timeoutInHeader = exchange.getIn().getHeader(GrpcConstants.GRPC_TIMEOUT_HEADER, Long.class);
+        if (timeoutInHeader != null) {
+            timeout = timeoutInHeader;
+        }
+        if (timeout != null) {
+            currentStub = GrpcUtils.addDeadlineAfter(currentStub, timeout, TimeUnit.MILLISECONDS);
+        }
         try {
-            GrpcUtils.invokeAsyncMethod(grpcStub, configuration.getMethod(), message.getBody(), responseObserver);
+            GrpcUtils.invokeAsyncMethod(currentStub, configuration.getMethod(), message.getBody(), responseObserver);
         } catch (Exception e) {
             exchange.setException(e);
             callback.done(true);

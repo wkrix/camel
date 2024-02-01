@@ -90,6 +90,9 @@ public class GrpcConfiguration {
     private GrpcProducerStrategy producerStrategy = GrpcProducerStrategy.SIMPLE;
 
     @UriParam(label = "producer")
+    private Long timeout;
+
+    @UriParam(label = "producer")
     private String streamRepliesTo;
 
     @UriParam(label = "producer")
@@ -478,5 +481,16 @@ public class GrpcConfiguration {
         }
 
         setService(uri.getPath().substring(1));
+    }
+
+    public Long getTimeout() {
+        return timeout;
+    }
+
+    /**
+     * Setting timeout.
+     */
+    public void setTimeout(Long timeout) {
+        this.timeout = timeout;
     }
 }
